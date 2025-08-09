@@ -11,7 +11,6 @@ This connector was developed as part of the SSN College of Engineering's Softwar
   - [Project Overview](#project-overview)
     - [Key Features](#key-features)
     - [Architecture Diagram](#architecture-diagram)
-  - [](#)
   - [API Details: Spotify Web API](#api-details-spotify-web-api)
   - [The ETL Pipeline Explained](#the-etl-pipeline-explained)
     - [1. Extract](#1-extract)
@@ -47,6 +46,7 @@ The pipeline executes a multi-step process to gather, process, and store data, d
 ### Architecture Diagram
 
 ![Architecture](architecture.png)
+
 -----
 
 ## API Details: Spotify Web API
