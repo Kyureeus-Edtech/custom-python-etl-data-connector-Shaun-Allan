@@ -4,6 +4,20 @@ This project is a robust, modular, and well-tested ETL (Extract, Transform, Load
 
 This connector was developed as part of the SSN College of Engineering's Software Architecture assignment with Kyureeus EdTech.
 
+## Table of Contents
+
+1.  [Project Overview](https://www.google.com/search?q=%23project-overview)
+2.  [API Details: Spotify Web API](https://www.google.com/search?q=%23api-details-spotify-web-api)
+3.  [The ETL Pipeline Explained](https://www.google.com/search?q=%23the-etl-pipeline-explained)
+4.  [Data Transformation Example](https://www.google.com/search?q=%23data-transformation-example)
+5.  [Project Structure](https://www.google.com/search?q=%23project-structure)
+6.  [Setup and Installation](https://www.google.com/search?q=%23setup-and-installation)
+7.  [How to Run](https://www.google.com/search?q=%23how-to-run)
+8.  [Testing Strategy](https://www.google.com/search?q=%23testing-strategy)
+9.  [Output](https://www.google.com/search?q=%23output)
+
+-----
+
 ## Project Overview
 
 The pipeline executes a multi-step process to gather, process, and store data, demonstrating a professional approach to building data connectors. It is designed to be resilient, handling network timeouts and temporary API errors with an automatic retry mechanism.
@@ -18,10 +32,30 @@ The pipeline executes a multi-step process to gather, process, and store data, d
   * **Comprehensive Testing**: The project includes a single, unified test suite that validates both business logic and system robustness.
   * **Flexible Execution**: The target playlist ID is provided as a command-line argument, making the script highly reusable.
 
-
 ### Architecture Diagram
 
 ![Architecture](architecture.png)
+-----
+
+## API Details: Spotify Web API
+
+This project utilizes several endpoints from the Spotify Web API to gather the necessary data. Authentication is handled using the Client Credentials Flow.
+
+  * **`POST https://accounts.spotify.com/api/token`**
+
+      * **Purpose:** Used for authentication. The script sends its `Client ID` and `Client Secret` to this endpoint to receive a temporary bearer token, which is required for all subsequent API calls.
+
+  * **`GET /v1/playlists/{id}`**
+
+      * **Purpose:** The first step in the extraction process. This endpoint is called to fetch high-level metadata about the target playlist, such as its name, description, owner, and total number of followers.
+
+  * **`GET /v1/playlists/{id}/tracks`**
+
+      * **Purpose:** The second extraction step. This endpoint retrieves a list of all track items within the playlist. The primary goal is to collect the unique Spotify ID for each track.
+
+  * **`GET /v1/tracks`**
+
+      * **Purpose:** The final extraction step. This is a powerful bulk endpoint that takes a comma-separated list of track IDs (collected from the previous step) and returns rich, detailed information for all of them in a single, efficient API call.
 
 -----
 
@@ -29,10 +63,10 @@ The pipeline executes a multi-step process to gather, process, and store data, d
 
 ### 1\. Extract
 
-The extraction process is performed in two main steps to gather all the necessary raw data:
+The extraction process uses the endpoints listed above to gather all the necessary raw data:
 
-  * **Playlist Details**: First, a call is made to the `/v1/playlists/{id}` endpoint to get the playlist's own metadata (name, description, owner, follower count).
-  * **Track Details**: The script then extracts a list of all track IDs from the playlist. These IDs are then used to make a bulk call to the `/v1/tracks` endpoint to get the rich, full details for up to 100 tracks at once.
+  * **Playlist Details**: Fetches the playlist's own metadata.
+  * **Track Details**: First gets all track IDs from the playlist, then uses those IDs to fetch full details for all tracks.
 
 ### 2\. Transform
 
@@ -56,11 +90,11 @@ The final, transformed document is loaded into a MongoDB database.
 
 ## Data Transformation Example
 
-To understand the transformation process, here is an example of the "before" and "after" data for a single track.
+To understand the transformation process, here is an example of the "before" and "after" data.
 
 ### Before Transformation (Raw API Data)
 
-The script receives a raw playlist object and a list of raw track objects from the API. They are complex, nested, and contain many unnecessary fields.
+The script receives raw playlist and track objects from the API. They are complex and contain many unnecessary fields.
 
 **Raw Playlist Snippet:**
 
@@ -68,16 +102,8 @@ The script receives a raw playlist object and a list of raw track objects from t
 {
   "id": "70ROJroKWQhEKSDCzc3QG6",
   "name": "Spider man",
-  "description": "",
-  "owner": {
-    "display_name": "Shaun"
-  },
-  "followers": {
-    "total": 0
-  },
-  "tracks": {
-    "total": 8
-  }
+  "owner": { "display_name": "Shaun" },
+  "followers": { "total": 0 }
 }
 ```
 
@@ -86,19 +112,10 @@ The script receives a raw playlist object and a list of raw track objects from t
 ```json
 {
   "album": {
-    "name": "METRO BOOMIN PRESENTS SPIDER-MAN: ACROSS THE SPIDER-VERSE...",
+    "name": "METRO BOOMIN PRESENTS SPIDER-MAN...",
     "release_date": "2023-06-02"
   },
-  "artists": [
-    {
-      "id": "0iEtIxbK0KxaSlF7G42ZOp",
-      "name": "Metro Boomin"
-    },
-    {
-      "id": "1zNqQNIdeOUZHb8zbZRFs7",
-      "name": "Swae Lee"
-    }
-  ],
+  "artists": [ { "name": "Metro Boomin" } ],
   "available_markets": ["CA", "US", "IN"],
   "id": "5rurggqwwudn9clMdcchxT",
   "name": "Calling (Spider-Man: Across the Spider-Verse)...",
@@ -108,34 +125,24 @@ The script receives a raw playlist object and a list of raw track objects from t
 
 ### After Transformation (Loaded to MongoDB)
 
-The script processes the raw data, calculates new fields, cleans up the structure, and merges everything into a single, clean document like the one below.
+The script processes the raw data, calculates new fields, cleans the structure, and merges everything into a single document.
 
 ```json
 {
   "playlist_id": "70ROJroKWQhEKSDCzc3QG6",
   "name": "Spider man",
-  "description": "",
   "owner": "Shaun",
   "total_followers": 0,
   "ingestion_timestamp": "2025-08-09T18:30:00.123Z",
   "tracks": [
     {
       "track_id": "5rurggqwwudn9clMdcchxT",
-      "track_name": "Calling (Spider-Man: Across the Spider-Verse) (Metro Boomin & Swae Lee, NAV, feat. A Boogie Wit da Hoodie)",
-      "artists": ["Metro Boomin", "Swae Lee", "NAV", "A Boogie Wit da Hoodie"],
-      "album_name": "METRO BOOMIN PRESENTS SPIDER-MAN: ACROSS THE SPIDER-VERSE (SOUNDTRACK FROM AND INSPIRED BY THE MOTION PICTURE)",
+      "track_name": "Calling (Spider-Man: Across the Spider-Verse)...",
+      "artists": ["Metro Boomin"],
+      "album_name": "METRO BOOMIN PRESENTS SPIDER-MAN...",
       "album_age_years": 2,
       "is_available_in_india": true,
       "popularity_tier": "Popular"
-    },
-    {
-      "track_id": "6Ec5LeRzkisa5KJtwLfOoW",
-      "track_name": "Am I Dreaming (Metro Boomin & A$AP Rocky, Roisee)",
-      "artists": ["Metro Boomin", "A$AP Rocky", "Roisee"],
-      "album_name": "METRO BOOMIN PRESENTS SPIDER-MAN: ACROSS THE SPIDER-VERSE (SOUNDTRACK FROM AND INSPIRED BY THE MOTION PICTURE)",
-      "album_age_years": 2,
-      "is_available_in_india": true,
-      "popularity_tier": "Mainstream Hit"
     }
   ]
 }
@@ -212,10 +219,11 @@ python -m unittest test.py
 
 The pipeline is validated by a comprehensive `test.py` file that covers all the assignment's validation requirements. It includes two types of tests within a single suite:
 
-1.  **Transformation Logic Tests**: These tests validate the core business logic. They use pre-defined sample raw data and assert that the output of the transformation functions exactly matches a desired, correctly calculated structure.
-2.  **Pipeline Robustness Tests**: These tests use **mocking** to simulate various failure scenarios. They verify that the pipeline can gracefully handle external issues like API errors (e.g., 404, 429), network connectivity problems, and database connection failures without crashing.
+1.  **Transformation Logic Tests**: These tests validate the core business logic using pre-defined sample raw data.
+2.  **Pipeline Robustness Tests**: These tests use **mocking** to simulate and verify that the pipeline can gracefully handle external issues like API errors, network problems, and database connection failures.
 
 -----
 
 ## Output
+
 ![Output](output.png)
