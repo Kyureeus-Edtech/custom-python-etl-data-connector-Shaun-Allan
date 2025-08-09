@@ -6,15 +6,27 @@ This connector was developed as part of the SSN College of Engineering's Softwar
 
 ## Table of Contents
 
-1.  [Project Overview](https://www.google.com/search?q=%23project-overview)
-2.  [API Details: Spotify Web API](https://www.google.com/search?q=%23api-details-spotify-web-api)
-3.  [The ETL Pipeline Explained](https://www.google.com/search?q=%23the-etl-pipeline-explained)
-4.  [Data Transformation Example](https://www.google.com/search?q=%23data-transformation-example)
-5.  [Project Structure](https://www.google.com/search?q=%23project-structure)
-6.  [Setup and Installation](https://www.google.com/search?q=%23setup-and-installation)
-7.  [How to Run](https://www.google.com/search?q=%23how-to-run)
-8.  [Testing Strategy](https://www.google.com/search?q=%23testing-strategy)
-9.  [Output](https://www.google.com/search?q=%23output)
+- [Spotify Playlist ETL Connector - Shaun Allan H - 3122225001127](#spotify-playlist-etl-connector---shaun-allan-h---3122225001127)
+  - [Table of Contents](#table-of-contents)
+  - [Project Overview](#project-overview)
+    - [Key Features](#key-features)
+    - [Architecture Diagram](#architecture-diagram)
+  - [](#)
+  - [API Details: Spotify Web API](#api-details-spotify-web-api)
+  - [The ETL Pipeline Explained](#the-etl-pipeline-explained)
+    - [1. Extract](#1-extract)
+    - [2. Transform](#2-transform)
+    - [3. Load](#3-load)
+  - [Data Transformation Example](#data-transformation-example)
+    - [Before Transformation (Raw API Data)](#before-transformation-raw-api-data)
+    - [After Transformation (Loaded to MongoDB)](#after-transformation-loaded-to-mongodb)
+  - [Project Structure](#project-structure)
+  - [Setup and Installation](#setup-and-installation)
+  - [How to Run](#how-to-run)
+    - [Running the ETL Pipeline](#running-the-etl-pipeline)
+    - [Running the Tests](#running-the-tests)
+  - [Testing Strategy](#testing-strategy)
+  - [Output](#output)
 
 -----
 
