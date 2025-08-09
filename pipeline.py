@@ -2,6 +2,7 @@ import requests
 from datetime import datetime, timezone
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
+from tenacity import retry, stop_after_attempt, wait_exponential 
 
 
 
@@ -9,6 +10,7 @@ from pymongo.errors import ConnectionFailure
 #            EXTRACT            #
 #################################
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 def get_playlist_details(token, playlist_id, base_url):
     """
     Extracts the full, raw JSON object for a playlist from the Spotify API.
@@ -16,12 +18,15 @@ def get_playlist_details(token, playlist_id, base_url):
     print(f"Extracting details for playlist: {playlist_id}...")
     url = f"{base_url}/v1/playlists/{playlist_id}"
     headers = {"Authorization": f"Bearer {token}"}
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        print("Failed to get playlist details:", response.json())
-        return None
-    return response.json()
+    try:
+        response = requests.get(url, headers=headers, timeout=15) # Add 15-second timeout
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to get playlist details due to an error: {e}")
+        raise e # Re-raise the exception to trigger the retry
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 def get_playlist_track_ids(token, playlist_id, base_url):
     """
     Extracts only the track IDs from a specific Spotify playlist.
@@ -29,33 +34,34 @@ def get_playlist_track_ids(token, playlist_id, base_url):
     print(f"Extracting track IDs from playlist: {playlist_id}...")
     url = f"{base_url}/v1/playlists/{playlist_id}/tracks"
     headers = {"Authorization": f"Bearer {token}"}
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        print("Failed to get playlist track IDs:", response.json())
-        return None
-    
-    items = response.json().get('items', [])
-    track_ids = [item['track']['id'] for item in items if item.get('track') and item['track'].get('id')]
-    print(f"Found {len(track_ids)} track IDs.")
-    return track_ids
+    try:
+        response = requests.get(url, headers=headers, timeout=15) # Add 15-second timeout
+        response.raise_for_status()
+        items = response.json().get('items', [])
+        track_ids = [item['track']['id'] for item in items if item.get('track') and item['track'].get('id')]
+        print(f"Found {len(track_ids)} track IDs.")
+        return track_ids
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to get playlist track IDs due to an error: {e}")
+        raise e # Re-raise to trigger retry
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 def get_track_details(token, track_ids, base_url):
     """
     Extracts full details for a list of tracks using their IDs.
     """
-    if not track_ids:
-        return None
+    if not track_ids: return None
     print(f"Extracting full details for {len(track_ids)} tracks...")
     url = f"{base_url}/v1/tracks"
     headers = {"Authorization": f"Bearer {token}"}
     params = {"ids": ",".join(track_ids)}
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code != 200:
-        print("Failed to get track details:", response.json())
-        return None
-    
-    return response.json().get('tracks', [])
-
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=15) # Add 15-second timeout
+        response.raise_for_status()
+        return response.json().get('tracks', [])
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to get track details due to an error: {e}")
+        raise e # Re-raise to trigger retry
 
 
 
