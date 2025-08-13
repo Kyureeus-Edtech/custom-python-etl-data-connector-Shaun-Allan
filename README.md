@@ -1,17 +1,16 @@
-# Spotify Playlist ETL Connector - Shaun Allan H - 3122225001127
+# NVD CVE Vulnerability ETL Pipeline - Shaun Allan H - 3122225001127
 
-This project is a robust, modular, and well-tested ETL (Extract, Transform, Load) pipeline built in Python. It extracts detailed metadata and track information for a given public Spotify playlist, performs a series of complex transformations to enrich the data, and loads the final, merged document into a MongoDB collection.
+This project is a robust, modular, and well-tested ETL (Extract, Transform, Load) pipeline built in Python. It extracts detailed information on cybersecurity vulnerabilities (CVEs) from the U.S. National Vulnerability Database (NVD), performs targeted transformations to create a clean and usable data structure, and loads the results into a MongoDB collection using an efficient synchronization strategy.
 
 This connector was developed as part of the SSN College of Engineering's Software Architecture assignment with Kyureeus EdTech.
 
 ## Table of Contents
 
-- [Spotify Playlist ETL Connector - Shaun Allan H - 3122225001127](#spotify-playlist-etl-connector---shaun-allan-h---3122225001127)
+- [NVD CVE Vulnerability ETL Pipeline - Shaun Allan H - 3122225001127](#nvd-cve-vulnerability-etl-pipeline---shaun-allan-h---3122225001127)
   - [Table of Contents](#table-of-contents)
   - [Project Overview](#project-overview)
     - [Key Features](#key-features)
-    - [Architecture Diagram](#architecture-diagram)
-  - [API Details: Spotify Web API](#api-details-spotify-web-api)
+  - [API Details: NVD CVE API](#api-details-nvd-cve-api)
   - [The ETL Pipeline Explained](#the-etl-pipeline-explained)
     - [1. Extract](#1-extract)
     - [2. Transform](#2-transform)
@@ -31,43 +30,26 @@ This connector was developed as part of the SSN College of Engineering's Softwar
 
 ## Project Overview
 
-The pipeline executes a multi-step process to gather, process, and store data, demonstrating a professional approach to building data connectors. It is designed to be resilient, handling network timeouts and temporary API errors with an automatic retry mechanism.
+The pipeline executes a multi-step process to gather, process, and store data on cybersecurity vulnerabilities, demonstrating a professional approach to building data connectors. It is designed to be resilient, handling network timeouts and temporary API errors with an automatic retry mechanism, and efficient, by fetching only recently updated data.
 
 ### Key Features
 
-  * **Modular Architecture**: Code is separated into distinct modules for authentication, configuration, and ETL logic.
-  * **Advanced Transformations**: The pipeline doesn't just move data; it creates new, insightful fields such as album age, market availability, and popularity tiers.
-  * **Embedded Data Model**: All data for a single playlist, including its list of transformed tracks, is stored as a single document in MongoDB.
+  * **Modular Architecture**: Code is separated into distinct modules for configuration and core ETL logic (`pipeline.py`).
+  * **Advanced Transformations**: Flattens the complex, nested JSON from the NVD API into a clean, structured format, extracting key details like severity scores, CVSS vectors, and descriptions.
+  * **Efficient Database Synchronization**: Uses an "upsert" strategy to load data. New vulnerabilities are added, and existing ones are updated if they've changed, ensuring the database is always synchronized without redundant writes.
   * **Resilient by Design**: Implements timeouts and automatic retries with exponential backoff to handle network or API instability.
-  * **Secure Credential Management**: All sensitive keys and URIs are managed securely using a `.env` file.
-  * **Comprehensive Testing**: The project includes a single, unified test suite that validates both business logic and system robustness.
-  * **Flexible Execution**: The target playlist ID is provided as a command-line argument, making the script highly reusable.
-
-### Architecture Diagram
-
-![Architecture](architecture.png)
+  * **Secure Credential Management**: All configuration, including API keys and database URIs, is managed securely using a `.env` file.
+  * **Comprehensive Testing**: Includes a unified test suite that validates business logic and system robustness against simulated API and database errors.
+  * **Automated & Targeted Fetching**: Automatically fetches vulnerabilities modified in the last 30 days, making it ideal for scheduled, recurring execution (e.g., via a cron job) to keep a database continuously updated.
 
 -----
 
-## API Details: Spotify Web API
+## API Details: NVD CVE API
 
-This project utilizes several endpoints from the Spotify Web API to gather the necessary data. Authentication is handled using the Client Credentials Flow.
+This project utilizes the CVE API from the U.S. **National Vulnerability Database (NVD)**, a comprehensive cybersecurity resource maintained by NIST.
 
-  * **`POST https://accounts.spotify.com/api/token`**
-
-      * **Purpose:** Used for authentication. The script sends its `Client ID` and `Client Secret` to this endpoint to receive a temporary bearer token, which is required for all subsequent API calls.
-
-  * **`GET /v1/playlists/{id}`**
-
-      * **Purpose:** The first step in the extraction process. This endpoint is called to fetch high-level metadata about the target playlist, such as its name, description, owner, and total number of followers.
-
-  * **`GET /v1/playlists/{id}/tracks`**
-
-      * **Purpose:** The second extraction step. This endpoint retrieves a list of all track items within the playlist. The primary goal is to collect the unique Spotify ID for each track.
-
-  * **`GET /v1/tracks`**
-
-      * **Purpose:** The final extraction step. This is a powerful bulk endpoint that takes a comma-separated list of track IDs (collected from the previous step) and returns rich, detailed information for all of them in a single, efficient API call.
+  * **`GET /rest/json/cves/2.0`**
+      * **Purpose:** This is the primary endpoint for fetching vulnerability data. The script queries this endpoint with parameters to retrieve a list of all CVEs that have been published or modified within a specific date range (e.g., the last 30 days). The API returns a rich JSON object containing detailed information for each vulnerability. An optional API key can be included in the request header to achieve a higher rate limit.
 
 -----
 
@@ -75,88 +57,80 @@ This project utilizes several endpoints from the Spotify Web API to gather the n
 
 ### 1\. Extract
 
-The extraction process uses the endpoints listed above to gather all the necessary raw data:
+The extraction process makes a single, efficient API call to gather all necessary raw data:
 
-  * **Playlist Details**: Fetches the playlist's own metadata.
-  * **Track Details**: First gets all track IDs from the playlist, then uses those IDs to fetch full details for all tracks.
+  * **Date Calculation**: First, the script calculates a date range corresponding to the last 30 days.
+  * **API Request**: It then queries the NVD API, requesting all CVEs modified within that calculated date range. The raw response is a JSON object containing a list of vulnerability records.
 
 ### 2\. Transform
 
-This is the core of the pipeline where raw data is turned into valuable information.
+This is the core of the pipeline, where the complex raw data is simplified into a clean, flat, and useful structure.
 
-  * The raw playlist and track data are merged into a single document.
-  * **New Fields are Created**:
-      * `album_age_years`: Calculated by subtracting the album's `release_date` from the current year.
-      * `is_available_in_india`: A boolean field calculated by checking if `"IN"` is present in the `available_markets` list.
-      * `popularity_tier`: The numerical `popularity` score (0-100) is categorized into descriptive tiers ("Niche", "Popular", "Mainstream Hit").
-  * **Data is Cleaned**: Nested objects (like `artists`) are simplified into clean lists of names.
+  * The script iterates through each raw CVE object received from the API.
+  * **Data is Flattened**: It navigates the nested JSON structure to pull out the most important fields, such as:
+      * `cve_id` (e.g., "CVE-2025-0001")
+      * `description`
+      * `published_date` and `last_modified_date`
+      * CVSS v3.1 `base_score`, `severity`, and `vector_string`
+  * An `ingestion_timestamp` is added to track when the record was processed.
 
 ### 3\. Load
 
-The final, transformed document is loaded into a MongoDB database.
+The final, transformed records are loaded into a MongoDB database using a best-practice synchronization strategy.
 
-  * The script connects to the specified MongoDB instance and database.
-  * It uses `replace_one` with `upsert=True`, which means if a document for that playlist already exists, it will be completely replaced. If it doesn't exist, it will be created. This ensures the data is always up-to-date.
+  * The script connects to the specified MongoDB instance and collection.
+  * For each CVE record, it uses **`replace_one`** with **`upsert=True`**. This powerful command tells MongoDB:
+      * **If** a document with the same `cve_id` already exists, **replace** it with this new, updated record.
+      * **If not**, **insert** this record as a new document.
+  * This ensures the database is always an up-to-date mirror of the source data without creating duplicates.
 
 -----
 
 ## Data Transformation Example
 
-To understand the transformation process, here is an example of the "before" and "after" data.
+To understand the transformation process, here is an example of the "before" and "after" data for a single CVE.
 
 ### Before Transformation (Raw API Data)
 
-The script receives raw playlist and track objects from the API. They are complex and contain many unnecessary fields.
-
-**Raw Playlist Snippet:**
+The script receives a deeply nested JSON object for each vulnerability from the NVD API.
 
 ```json
 {
-  "id": "70ROJroKWQhEKSDCzc3QG6",
-  "name": "Spider man",
-  "owner": { "display_name": "Shaun" },
-  "followers": { "total": 0 }
-}
-```
-
-**Raw Track Snippet:**
-
-```json
-{
-  "album": {
-    "name": "METRO BOOMIN PRESENTS SPIDER-MAN...",
-    "release_date": "2023-06-02"
-  },
-  "artists": [ { "name": "Metro Boomin" } ],
-  "available_markets": ["CA", "US", "IN"],
-  "id": "5rurggqwwudn9clMdcchxT",
-  "name": "Calling (Spider-Man: Across the Spider-Verse)...",
-  "popularity": 70
+  "cve": {
+    "id": "CVE-2025-0001",
+    "published": "2025-07-20T18:15:09.917",
+    "lastModified": "2025-08-10T08:15:11.783",
+    "descriptions": [{"lang": "en", "value": "A critical vulnerability in a test web server."}],
+    "metrics": {
+      "cvssMetricV31": [
+        {
+          "cvssData": {
+            "version": "3.1",
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+            "baseScore": 9.8,
+            "baseSeverity": "CRITICAL"
+          }
+        }
+      ]
+    }
+  }
 }
 ```
 
 ### After Transformation (Loaded to MongoDB)
 
-The script processes the raw data, calculates new fields, cleans the structure, and merges everything into a single document.
+The script processes the raw data, flattens the structure, and prepares a clean document for MongoDB.
 
 ```json
 {
-  "playlist_id": "70ROJroKWQhEKSDCzc3QG6",
-  "name": "Spider man",
-  "owner": "Shaun",
-  "total_followers": 0,
-  "ingestion_timestamp": "2025-08-09T18:30:00.123Z",
-  "tracks": [
-    {
-      "track_id": "5rurggqwwudn9clMdcchxT",
-      "track_name": "Calling (Spider-Man: Across the Spider-Verse)...",
-      "artists": ["Metro Boomin"],
-      "album_name": "METRO BOOMIN PRESENTS SPIDER-MAN...",
-      "album_age_years": 2,
-      "is_available_in_india": true,
-      "popularity_tier": "Popular"
-    }
-  ]
+  "cve_id": "CVE-2025-0001",
+  "published_date": "2025-07-20T18:15:09.917",
+  "last_modified_date": "2025-08-10T08:15:11.783",
+  "description": "A critical vulnerability in a test web server.",
+  "base_score": 9.8,
+  "severity": "CRITICAL",
+  "vector_string": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+  "ingestion_timestamp": "2025-08-14T18:30:00.123Z"
 }
 ```
 
@@ -167,8 +141,8 @@ The script processes the raw data, calculates new fields, cleans the structure, 
 ```
 /SSN-college-software-architecture-Assignments/
 ├── .env
+├── ENV_TEMPLATE
 ├── config.py
-├── auth.py
 ├── pipeline.py
 ├── etl_connector.py
 ├── test.py
@@ -190,11 +164,22 @@ The script processes the raw data, calculates new fields, cleans the structure, 
     pip install -r requirements.txt
     ```
 4.  **Create your environment file**:
-    Create a file named `.env` in the project root and add your credentials. It must follow this format:
+    Create a file named `.env` by copying the `.env.template`. Then, fill in your credentials.
+    ```bash
+    cp .env.template .env
+    ```
+    Your `.env` file must contain the following variables:
     ```ini
-    SPOTIFY_CLIENT_ID="your-client-id-here"
-    SPOTIFY_CLIENT_SECRET="your-client-secret-here"
+    # NVD API key is optional but recommended for higher rate limits.
+    # Get one here: https://nvd.nist.gov/developers/request-an-api-key
+    NVD_API_KEY="your-nvd-api-key-here"
+
+    # Your MongoDB connection string
     MONGO_URI="mongodb://localhost:27017/"
+
+    # You can customize the DB and collection names if you wish
+    DB_NAME="vulnerability_db"
+    COLLECTION_NAME="cves"
     ```
 
 -----
@@ -203,19 +188,13 @@ The script processes the raw data, calculates new fields, cleans the structure, 
 
 ### Running the ETL Pipeline
 
-To run the main script, you must provide a public Spotify Playlist ID as a command-line argument.
-
-**Format:**
+To run the main script, simply execute the `etl_connector.py` file. It does not require any command-line arguments.
 
 ```bash
-python etl_connector.py <PLAYLIST_ID>
+python etl_connector.py
 ```
-
-**Example:**
-
-```bash
-python etl_connector.py 70ROJroKWQhEKSDCzc3QG6
-```
+**Output:**
+![Output](exec.png)
 
 ### Running the Tests
 
@@ -224,18 +203,19 @@ To run the consolidated test suite, use the following command:
 ```bash
 python -m unittest test.py
 ```
+**Output:**
+![Output](test.png)
 
 -----
 
 ## Testing Strategy
 
-The pipeline is validated by a comprehensive `test.py` file that covers all the assignment's validation requirements. It includes two types of tests within a single suite:
+The pipeline is validated by a comprehensive `test.py` file that covers the project's validation requirements. It includes two types of tests within a single suite:
 
-1.  **Transformation Logic Tests**: These tests validate the core business logic using pre-defined sample raw data.
-2.  **Pipeline Robustness Tests**: These tests use **mocking** to simulate and verify that the pipeline can gracefully handle external issues like API errors, network problems, and database connection failures.
+1.  **Transformation Logic Tests**: These tests validate the core business logic for flattening the NVD JSON data, using pre-defined sample data to ensure the output is correct.
+2.  **Pipeline Robustness Tests**: These tests use **mocking** to simulate and verify that the pipeline can gracefully handle external issues like API errors (e.g., network timeouts) and database connection failures.
 
 -----
 
 ## Output
-
 ![Output](output.png)

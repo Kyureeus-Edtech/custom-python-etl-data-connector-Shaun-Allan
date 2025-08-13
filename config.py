@@ -1,16 +1,15 @@
 import os
 from dotenv import load_dotenv
 
+# Load variables from the .env file into the environment
 load_dotenv()
 
-# --- Spotify API Configuration ---
-SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
-SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
-SPOTIFY_AUTH_URL = "https://accounts.spotify.com/api/token"
-SPOTIFY_BASE_API_URL = "https://api.spotify.com"
+# --- NVD API Configuration ---
+NVD_API_BASE_URL = os.getenv("NVD_API_BASE_URL")
+NVD_API_KEY = os.getenv("NVD_API_KEY")
 
 
 # --- MongoDB Configuration ---
 MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME = "spotify_db"
-COLLECTION_NAME = "playlists"
+DB_NAME = os.getenv("DB_NAME")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME")

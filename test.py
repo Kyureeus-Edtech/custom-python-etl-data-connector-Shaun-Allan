@@ -1,103 +1,161 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 import requests
 from pymongo.errors import ConnectionFailure
-from tenacity import RetryError # Import RetryError
-from pipeline import get_playlist_details, get_track_details, load_data
+from tenacity import RetryError
+from pipeline import extract_nvd_data, transform_nvd_data, load_data
+from datetime import datetime
 
-SPIDERMAN_PLAYLIST_DATA = {
-    'playlist_id': '70ROJroKWQhEKSDCzc3QG6', 'name': 'Spider man', 'description': '', 'owner': 'Shaun', 'total_followers': 0,
-    'tracks': [
-        {'track_id': '5rurggqwwudn9clMdcchxT', 'track_name': 'Calling (Spider-Man: Across the Spider-Verse) (Metro Boomin & Swae Lee, NAV, feat. A Boogie Wit da Hoodie)', 'artists': ['Metro Boomin', 'Swae Lee', 'NAV', 'A Boogie Wit da Hoodie'], 'album_name': 'METRO BOOMIN PRESENTS SPIDER-MAN: ACROSS THE SPIDER-VERSE (SOUNDTRACK FROM AND INSPIRED BY THE MOTION PICTURE)', 'album_age_years': 2, 'is_available_in_india': True, 'popularity_tier': 'Popular'},
-        {'track_id': '6Ec5LeRzkisa5KJtwLfOoW', 'track_name': 'Am I Dreaming (Metro Boomin & A$AP Rocky, Roisee)', 'artists': ['Metro Boomin', 'A$AP Rocky', 'Roisee'], 'album_name': 'METRO BOOMIN PRESENTS SPIDER-MAN: ACROSS THE SPIDER-VERSE (SOUNDTRACK FROM AND INSPIRED BY THE MOTION PICTURE)', 'album_age_years': 2, 'is_available_in_india': True, 'popularity_tier': 'Mainstream Hit'},
-        {'track_id': '0wt9RjddODlWDetpuaXfRK', 'track_name': 'Sunflower (Remix) [with Swae Lee, Nicky Jam, and Prince Royce]', 'artists': ['Post Malone', 'Swae Lee', 'Nicky Jam', 'Prince Royce', 'G.O.K.B.'], 'album_name': 'Spider-Man: Into the Spider-Verse (Deluxe Edition / Soundtrack From & Inspired By The Motion Picture)', 'album_age_years': 6, 'is_available_in_india': True, 'popularity_tier': 'Popular'},
-        {'track_id': '39MK3d3fonIP8Mz9oHCTBB', 'track_name': 'Annihilate (Spider-Man: Across the Spider-Verse) (Metro Boomin & Swae Lee, Lil Wayne, Offset)', 'artists': ['Metro Boomin', 'Swae Lee', 'Lil Wayne', 'Offset'], 'album_name': 'METRO BOOMIN PRESENTS SPIDER-MAN: ACROSS THE SPIDER-VERSE (SOUNDTRACK FROM AND INSPIRED BY THE MOTION PICTURE)', 'album_age_years': 2, 'is_available_in_india': True, 'popularity_tier': 'Popular'},
-        {'track_id': '0AAMnNeIc6CdnfNU85GwCH', 'track_name': 'Self Love (Spider-Man: Across the Spider-Verse) (Metro Boomin & Coi Leray)', 'artists': ['Metro Boomin', 'Coi Leray'], 'album_name': 'METRO BOOMIN PRESENTS SPIDER-MAN: ACROSS THE SPIDER-VERSE (SOUNDTRACK FROM AND INSPIRED BY THE MOTION PICTURE)', 'album_age_years': 2, 'is_available_in_india': True, 'popularity_tier': 'Popular'},
-        {'track_id': '2TvzLO4ifNWEnAAShxA6YW', 'track_name': "What's Up Danger (with Black Caviar)", 'artists': ['Blackway', 'Black Caviar'], 'album_name': 'Spider-Man: Into the Spider-Verse (Deluxe Edition / Soundtrack From & Inspired By The Motion Picture)', 'album_age_years': 6, 'is_available_in_india': True, 'popularity_tier': 'Niche'},
-        {'track_id': '3KkXRkHbMCARz0aVfEt68P', 'track_name': 'Sunflower - Spider-Man: Into the Spider-Verse', 'artists': ['Post Malone', 'Swae Lee'], 'album_name': 'Spider-Man: Into the Spider-Verse (Soundtrack From & Inspired by the Motion Picture)', 'album_age_years': 7, 'is_available_in_india': True, 'popularity_tier': 'Mainstream Hit'},
-        {'track_id': '5zsHmE2gO3RefVsPyw2e3T', 'track_name': "What's Up Danger (with Black Caviar)", 'artists': ['Blackway', 'Black Caviar'], 'album_name': 'Spider-Man: Into the Spider-Verse (Soundtrack From & Inspired by the Motion Picture)', 'album_age_years': 7, 'is_available_in_india': True, 'popularity_tier': 'Popular'}
+# Mock JSON response from the NVD API
+MOCK_NVD_JSON_RESPONSE = {
+    "resultsPerPage": 2,
+    "startIndex": 0,
+    "totalResults": 2,
+    "format": "NVD_CVE",
+    "version": "2.0",
+    "timestamp": "2025-08-14T02:40:53.943",
+    "vulnerabilities": [
+        {
+            "cve": {
+                "id": "CVE-2025-0001",
+                "published": "2025-07-20T18:15:09.917",
+                "lastModified": "2025-08-10T08:15:11.783",
+                "descriptions": [{"lang": "en", "value": "A critical vulnerability in a test web server."}],
+                "metrics": {
+                    "cvssMetricV31": [
+                        {
+                            "cvssData": {
+                                "version": "3.1",
+                                "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+                                "baseScore": 9.8,
+                                "baseSeverity": "CRITICAL"
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "cve": {
+                "id": "CVE-2025-0002",
+                "published": "2025-07-21T10:00:00.000",
+                "lastModified": "2025-08-11T12:00:00.000",
+                "descriptions": [{"lang": "en", "value": "A medium severity issue in a database client."}],
+                "metrics": {
+                    "cvssMetricV31": [
+                        {
+                            "cvssData": {
+                                "version": "3.1",
+                                "vectorString": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:N/A:N",
+                                "baseScore": 5.3,
+                                "baseSeverity": "MEDIUM"
+                            }
+                        }
+                    ]
+                }
+            }
+        }
     ]
 }
 
+# Expected data after transformation
+EXPECTED_TRANSFORMED_DATA = [
+    {
+        'cve_id': 'CVE-2025-0001',
+        'published_date': '2025-07-20T18:15:09.917',
+        'last_modified_date': '2025-08-10T08:15:11.783',
+        'description': 'A critical vulnerability in a test web server.',
+        'base_score': 9.8,
+        'severity': 'CRITICAL',
+        'vector_string': 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H'
+    },
+    {
+        'cve_id': 'CVE-2025-0002',
+        'published_date': '2025-07-21T10:00:00.000',
+        'last_modified_date': '2025-08-11T12:00:00.000',
+        'description': 'A medium severity issue in a database client.',
+        'base_score': 5.3,
+        'severity': 'MEDIUM',
+        'vector_string': 'CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:N/A:N'
+    }
+]
 
-class TestPipelineRobustness(unittest.TestCase):
+
+class TestNvdCvePipeline(unittest.TestCase):
 
     @patch('pipeline.requests.get')
-    def test_extract_handles_api_error(self, mock_get):
-        """
-        Test that the function raises a RetryError after failing on a 404 error.
-        """
-        print("\nTesting: API returns an invalid response (404)...")
+    def test_extract_success(self, mock_get):
+        """Test successful extraction of JSON data from NVD API."""
+        print("\nTesting: Successful data extraction...")
         mock_response = MagicMock()
-        mock_response.status_code = 404
-        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError
+        mock_response.status_code = 200
+        mock_response.json.return_value = MOCK_NVD_JSON_RESPONSE
         mock_get.return_value = mock_response
+
+        # We only need to provide the URL, the function calculates the params
+        result = extract_nvd_data("http://fake.nvd.url")
         
-        # MODIFIED: We now assert that a RetryError is raised after all attempts fail
-        with self.assertRaises(RetryError):
-            get_playlist_details('fake_token', 'fake_id', 'http://fake.url')
-
-    @patch('pipeline.requests.get')
-    def test_extract_handles_rate_limit(self, mock_get):
-        """
-        Test that the function raises a RetryError after failing on a 429 error.
-        """
-        print("\nTesting: API returns a rate limit error (429)...")
-        mock_response = MagicMock()
-        mock_response.status_code = 429
-        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError
-        mock_get.return_value = mock_response
-
-        # MODIFIED: We now assert that a RetryError is raised
-        with self.assertRaises(RetryError):
-            get_playlist_details('fake_token', 'fake_id', 'http://fake.url')
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]['cve']['id'], 'CVE-2025-0001')
+        print("  -> Passed.")
 
     @patch('pipeline.requests.get')
     def test_extract_handles_network_error(self, mock_get):
-        """
-        Test that the function raises a RetryError after a network error.
-        """
+        """Test that the extract function retries and raises RetryError on network failure."""
         print("\nTesting: Network connectivity issue to API...")
         mock_get.side_effect = requests.exceptions.ConnectionError("Failed to connect")
         
-        # MODIFIED: We now assert that a RetryError is raised
         with self.assertRaises(RetryError):
-            get_playlist_details('fake_token', 'fake_id', 'http://fake.url')
+            extract_nvd_data('http://fake.nvd.url')
+        print("  -> Passed: RetryError was correctly raised.")
 
-    # (The tests that were already passing are unchanged)
-
-    @patch('pipeline.requests.get')
-    def test_extract_handles_empty_payload(self, mock_get):
-        print("\nTesting: API returns a successful but empty payload...")
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {'tracks': []}
-        mock_get.return_value = mock_response
-        result = get_track_details('fake_token', ['some_id'], 'http://fake.url')
-        self.assertEqual(result, [], "Function should return an empty list for an empty payload")
+    def test_transform_data(self):
+        """Test the data transformation logic for nested NVD JSON."""
+        print("\nTesting: Data transformation...")
+        raw_data = MOCK_NVD_JSON_RESPONSE['vulnerabilities']
+        result = transform_nvd_data(raw_data)
+        
+        # We manually remove the 'ingestion_timestamp' for a predictable comparison
+        for record in result:
+            del record['ingestion_timestamp']
+            
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result, EXPECTED_TRANSFORMED_DATA)
+        print("  -> Passed.")
 
     @patch('pipeline.MongoClient')
     def test_load_handles_db_connection_error(self, mock_mongo_client):
+        """Test that the load function handles DB connection errors gracefully."""
         print("\nTesting: Database connectivity issue...")
         mock_mongo_client.side_effect = ConnectionFailure("Could not connect to MongoDB")
-        load_data(SPIDERMAN_PLAYLIST_DATA, "fake_uri", "fake_db", "fake_collection")
-        print("  -> Test passed: The function handled the exception gracefully.")
+        load_data(EXPECTED_TRANSFORMED_DATA, "fake_uri", "fake_db", "fake_collection")
+        print("  -> Passed: The function handled the exception gracefully.")
 
     @patch('pipeline.MongoClient')
     def test_load_data_calls_mongodb_correctly(self, mock_mongo_client):
-        print("\nTesting: Correct data insertion into MongoDB...")
+        """Test that the load function calls MongoDB with an 'upsert' strategy."""
+        print("\nTesting: Correct data upsert into MongoDB...")
         mock_db = MagicMock()
         mock_collection = MagicMock()
         mock_instance = mock_mongo_client.return_value
         mock_instance.__getitem__.return_value = mock_db
         mock_db.__getitem__.return_value = mock_collection
-        load_data(SPIDERMAN_PLAYLIST_DATA, "fake_uri", "fake_db", "playlists_with_tracks")
-        mock_collection.replace_one.assert_called_with(
-            {"playlist_id": "70ROJroKWQhEKSDCzc3QG6"},
-            SPIDERMAN_PLAYLIST_DATA,
-            upsert=True
-        )
-        print("  -> Verified that MongoDB's replace_one() was called with the correct filter and data.")
+        
+        load_data(EXPECTED_TRANSFORMED_DATA, "fake_uri", "fake_db", "cves")
+        
+        # Verify that replace_one is called for each record
+        self.assertEqual(mock_collection.replace_one.call_count, 2)
+        
+        # Check the arguments of the first call to replace_one
+        first_call_args = mock_collection.replace_one.call_args_list[0]
+        expected_filter = {'cve_id': 'CVE-2025-0001'}
+        
+        # call_args is a tuple: (args, kwargs). We check both.
+        self.assertEqual(first_call_args[0][0], expected_filter)  # Check filter query
+        self.assertEqual(first_call_args[0][1]['cve_id'], 'CVE-2025-0001') # Check record data
+        self.assertTrue(first_call_args[1]['upsert']) # Check upsert=True kwarg
+        
+        print("  -> Passed: Verified that replace_one() was called correctly with upsert=True.")
 
 if __name__ == '__main__':
     unittest.main()

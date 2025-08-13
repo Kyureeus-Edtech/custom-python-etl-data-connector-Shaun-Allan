@@ -1,0 +1,9 @@
+# --- NVD API Configuration ---
+NVD_API_BASE_URL="your_nvd_api_base_url_here"
+NVD_API_KEY="your_nvd_api_key_here"
+
+
+# --- MongoDB Configuration ---
+MONGO_URI="your_mongodb_connection_string_here"
+DB_NAME="your_database_name_here"
+COLLECTION_NAME="your_collection_name_here"
